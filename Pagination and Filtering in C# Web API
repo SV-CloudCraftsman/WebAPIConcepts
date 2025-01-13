@@ -1,0 +1,249 @@
+Pagination and Filtering in C# Web API
+Handling large datasets efficiently is critical for web APIs. Pagination and Filtering are common techniques used to reduce the amount of data returned in a single request, improving performance and providing a better user experience.
+
+In this section, we will explore how to implement pagination and filtering in a web API, with real-time examples and explanations.
+
+1. Implementing Pagination for Large Datasets
+Pagination allows clients to request only a subset of data from a larger dataset. It is commonly done by specifying page number and page size in the request query parameters.
+
+Example: Implementing Pagination with Query Parameters
+Let’s say we have a Products table in our database, and we want to return a paginated list of products.
+
+Controller Code:
+csharp
+Copy code
+public class ProductsController : ControllerBase
+{
+    private readonly ApplicationDbContext _context;
+
+    public ProductsController(ApplicationDbContext context)
+    {
+        _context = context;
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> GetProducts(int page = 1, int pageSize = 10)
+    {
+        if (page < 1 || pageSize < 1)
+        {
+            return BadRequest("Page and PageSize must be greater than 0.");
+        }
+
+        // Calculate the number of products to skip based on the page number
+        var skip = (page - 1) * pageSize;
+
+        // Query the products with pagination
+        var products = await _context.Products
+            .Skip(skip)
+            .Take(pageSize)
+            .ToListAsync();
+
+        // Return paginated products
+        return Ok(new 
+        {
+            Page = page,
+            PageSize = pageSize,
+            TotalCount = await _context.Products.CountAsync(),
+            Products = products
+        });
+    }
+}
+Explanation:
+Query Parameters:
+
+page: The current page number (defaults to 1).
+pageSize: The number of items per page (defaults to 10).
+Logic:
+
+We calculate the number of records to skip using the formula (page - 1) * pageSize and use Skip and Take methods to fetch the appropriate subset of records from the database.
+The CountAsync() method is used to calculate the total number of products, which helps in determining the total number of pages.
+Response:
+
+The response includes:
+Page: The current page.
+PageSize: The number of items per page.
+TotalCount: The total number of records in the database.
+Products: A list of products for the current page.
+Example Request:
+bash
+Copy code
+GET /api/products?page=2&pageSize=5
+Example Response:
+json
+Copy code
+{
+  "Page": 2,
+  "PageSize": 5,
+  "TotalCount": 100,
+  "Products": [
+    { "Id": 6, "Name": "Product 6", "Price": 10.99 },
+    { "Id": 7, "Name": "Product 7", "Price": 20.99 },
+    { "Id": 8, "Name": "Product 8", "Price": 30.99 },
+    { "Id": 9, "Name": "Product 9", "Price": 40.99 },
+    { "Id": 10, "Name": "Product 10", "Price": 50.99 }
+  ]
+}
+This allows clients to request smaller chunks of data, preventing overwhelming the API and improving response times.
+
+2. Sorting and Filtering Data Using Query Parameters
+In addition to pagination, sorting and filtering are essential for improving the user experience by allowing users to query the data more effectively.
+
+Example: Sorting Data
+You can allow clients to specify sorting criteria via query parameters. Let’s add sorting capabilities to the previous example.
+
+Controller Code:
+csharp
+Copy code
+[HttpGet]
+public async Task<IActionResult> GetProducts(int page = 1, int pageSize = 10, string sortBy = "Name", string sortOrder = "asc")
+{
+    if (page < 1 || pageSize < 1)
+    {
+        return BadRequest("Page and PageSize must be greater than 0.");
+    }
+
+    var skip = (page - 1) * pageSize;
+
+    IQueryable<Product> query = _context.Products;
+
+    // Sorting logic
+    if (sortOrder.ToLower() == "desc")
+    {
+        query = sortBy.ToLower() switch
+        {
+            "price" => query.OrderByDescending(p => p.Price),
+            "name" => query.OrderByDescending(p => p.Name),
+            _ => query.OrderByDescending(p => p.Name),
+        };
+    }
+    else
+    {
+        query = sortBy.ToLower() switch
+        {
+            "price" => query.OrderBy(p => p.Price),
+            "name" => query.OrderBy(p => p.Name),
+            _ => query.OrderBy(p => p.Name),
+        };
+    }
+
+    var products = await query.Skip(skip).Take(pageSize).ToListAsync();
+
+    return Ok(new 
+    {
+        Page = page,
+        PageSize = pageSize,
+        TotalCount = await _context.Products.CountAsync(),
+        Products = products
+    });
+}
+Explanation:
+Query Parameters:
+
+sortBy: Defines the field to sort by (e.g., Name, Price).
+sortOrder: Defines the sort order (asc or desc).
+Logic:
+
+We dynamically determine the sorting order using LINQ and OrderBy/OrderByDescending methods based on the provided sortBy and sortOrder values.
+Response:
+
+The response includes the paginated list of products, now sorted based on the provided parameters.
+Example Request:
+sql
+Copy code
+GET /api/products?page=1&pageSize=5&sortBy=Price&sortOrder=desc
+Example Response:
+json
+Copy code
+{
+  "Page": 1,
+  "PageSize": 5,
+  "TotalCount": 100,
+  "Products": [
+    { "Id": 1, "Name": "Product 1", "Price": 99.99 },
+    { "Id": 2, "Name": "Product 2", "Price": 89.99 },
+    { "Id": 3, "Name": "Product 3", "Price": 79.99 },
+    { "Id": 4, "Name": "Product 4", "Price": 69.99 },
+    { "Id": 5, "Name": "Product 5", "Price": 59.99 }
+  ]
+}
+Example: Filtering Data
+Now let’s add filtering to the API, where clients can specify certain criteria to filter the data.
+
+Controller Code:
+csharp
+Copy code
+[HttpGet]
+public async Task<IActionResult> GetProducts(int page = 1, int pageSize = 10, string searchTerm = null, decimal? minPrice = null, decimal? maxPrice = null)
+{
+    if (page < 1 || pageSize < 1)
+    {
+        return BadRequest("Page and PageSize must be greater than 0.");
+    }
+
+    var skip = (page - 1) * pageSize;
+
+    IQueryable<Product> query = _context.Products;
+
+    // Filtering by search term
+    if (!string.IsNullOrEmpty(searchTerm))
+    {
+        query = query.Where(p => p.Name.Contains(searchTerm));
+    }
+
+    // Filtering by price range
+    if (minPrice.HasValue)
+    {
+        query = query.Where(p => p.Price >= minPrice);
+    }
+    
+    if (maxPrice.HasValue)
+    {
+        query = query.Where(p => p.Price <= maxPrice);
+    }
+
+    var products = await query.Skip(skip).Take(pageSize).ToListAsync();
+
+    return Ok(new 
+    {
+        Page = page,
+        PageSize = pageSize,
+        TotalCount = await _context.Products.CountAsync(),
+        Products = products
+    });
+}
+Explanation:
+Query Parameters:
+
+searchTerm: Allows the client to filter products based on their name.
+minPrice and maxPrice: Allow filtering products within a price range.
+Logic:
+
+We use LINQ to apply conditional filters based on whether the query parameters are provided.
+Where clauses are used to filter products based on the criteria (e.g., product name or price).
+Response:
+
+The response includes the filtered, paginated product list based on the query parameters.
+Example Request:
+bash
+Copy code
+GET /api/products?page=1&pageSize=5&searchTerm=phone&minPrice=50&maxPrice=500
+Example Response:
+json
+Copy code
+{
+  "Page": 1,
+  "PageSize": 5,
+  "TotalCount": 10,
+  "Products": [
+    { "Id": 10, "Name": "Smartphone X", "Price": 499.99 },
+    { "Id": 9, "Name": "Smartphone Y", "Price": 399.99 },
+    { "Id": 8, "Name": "Smartphone Z", "Price": 299.99 },
+    { "Id": 7, "Name": "Feature Phone", "Price": 59.99 },
+    { "Id": 6, "Name": "Phone A", "Price": 149.99 }
+  ]
+}
+Summary of Pagination, Sorting, and Filtering:
+Pagination reduces the amount of data sent by splitting the dataset into pages, making the response more manageable.
+Sorting allows the user to specify how the data should be ordered.
+Filtering enables clients to narrow down the dataset based on criteria such as price, name, etc.
+These techniques help to optimize API performance and ensure that clients receive only the data they need in an efficient manner.
