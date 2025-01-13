@@ -1,0 +1,218 @@
+Routing and Parameters in C# Web API
+Routing in ASP.NET Core Web API is the process of mapping an incoming HTTP request to a corresponding action method in a controller. Routing is a critical component in developing RESTful APIs, as it determines how requests are handled based on the URL and HTTP methods.
+
+In this section, we’ll explore various concepts related to routing, query parameters, path parameters, model binding, and route attributes.
+
+1. URL Routing, Query Parameters, and Path Parameters
+URL Routing
+URL Routing is the mechanism that maps incoming HTTP requests to corresponding controller actions. In ASP.NET Core, routing can be defined using attributes, and it works based on URL patterns.
+
+By default, routes are created from the controller names and the action method names. You can also customize these routes using route attributes.
+
+Example:
+Let's say we have the following controller:
+
+csharp
+Copy code
+[Route("api/products")]
+[ApiController]
+public class ProductController : ControllerBase
+{
+    [HttpGet]
+    public ActionResult<IEnumerable<Product>> GetProducts()
+    {
+        return Ok(new List<Product>());
+    }
+}
+Here:
+
+The route for the controller is api/products.
+The GET method is mapped to the GetProducts action method.
+Query Parameters
+Query parameters are key-value pairs that appear at the end of the URL after a ?. They are used to filter or refine the data returned by the API.
+
+Example:
+In the following route, api/products?category=electronics&priceRange=1000-5000, the query parameters are category and priceRange.
+
+csharp
+Copy code
+[HttpGet]
+public ActionResult<IEnumerable<Product>> GetProducts([FromQuery] string category, [FromQuery] string priceRange)
+{
+    // Use category and priceRange to filter products
+    var filteredProducts = productService.GetFilteredProducts(category, priceRange);
+    return Ok(filteredProducts);
+}
+Here, the FromQuery attribute binds the category and priceRange parameters from the query string to the method parameters.
+
+Path Parameters
+Path parameters are variables within the URL path itself. These are typically used to identify specific resources.
+
+Example:
+In the following route, api/products/123, 123 is the path parameter.
+
+csharp
+Copy code
+[HttpGet("{id}")]
+public ActionResult<Product> GetProductById(int id)
+{
+    var product = productService.GetProductById(id);
+    if (product == null)
+        return NotFound();
+    return Ok(product);
+}
+Here:
+
+{id} is a path parameter.
+When a request like GET api/products/123 is made, the value 123 is passed to the id parameter of the GetProductById method.
+2. Model Binding in API Controllers
+Model Binding in ASP.NET Core is the process of binding incoming HTTP request data (like form data, query parameters, or route data) to method parameters or action parameters in the controller. This can happen for query parameters, path parameters, or request body (like JSON or XML data).
+
+Example:
+Let's consider a Product model:
+
+csharp
+Copy code
+public class Product
+{
+    public int Id { get; set; }
+    public string Name { get; set; }
+    public double Price { get; set; }
+}
+Binding Request Body (JSON) to a Model:
+In a POST request, the product details will be passed as a JSON body. Model binding automatically maps the request body to the Product object.
+
+csharp
+Copy code
+[HttpPost]
+public ActionResult<Product> CreateProduct([FromBody] Product product)
+{
+    // Validate and save the product
+    if (product == null)
+        return BadRequest("Invalid product data");
+
+    productService.AddProduct(product);
+    return CreatedAtAction(nameof(GetProductById), new { id = product.Id }, product);
+}
+Here, the FromBody attribute tells ASP.NET Core to look for the JSON data in the body of the request and bind it to the product parameter.
+
+Binding Query Parameters to Method Parameters:
+If the API receives query parameters, you can bind them to action method parameters.
+
+csharp
+Copy code
+[HttpGet]
+public ActionResult<IEnumerable<Product>> GetProducts([FromQuery] string category, [FromQuery] decimal? maxPrice)
+{
+    // Filter products based on category and max price
+    var filteredProducts = productService.GetFilteredProducts(category, maxPrice);
+    return Ok(filteredProducts);
+}
+Here, FromQuery binds the query parameters category and maxPrice from the URL to the method parameters.
+
+Binding Path Parameters to Method Parameters:
+In a GET request that uses a path parameter, model binding binds the value from the URL path to the action method parameter.
+
+csharp
+Copy code
+[HttpGet("{id}")]
+public ActionResult<Product> GetProductById(int id)
+{
+    var product = productService.GetProductById(id);
+    if (product == null)
+        return NotFound();
+    return Ok(product);
+}
+Here, {id} in the route is a path parameter, and ASP.NET Core automatically binds it to the id method parameter.
+
+3. Route Attributes ([HttpGet], [HttpPost], [Route])
+ASP.NET Core allows you to define routing using attribute-based routing, which is more flexible and easier to maintain.
+
+[Route] Attribute
+The [Route] attribute is used to specify the base URL of a controller or an individual action method. It is a flexible way of defining custom routes.
+
+Example:
+csharp
+Copy code
+[Route("api/products")]
+[ApiController]
+public class ProductController : ControllerBase
+{
+    [HttpGet]
+    public ActionResult<IEnumerable<Product>> GetProducts()
+    {
+        return Ok(new List<Product>());
+    }
+
+    [HttpGet("{id}")]
+    public ActionResult<Product> GetProductById(int id)
+    {
+        return Ok(new Product { Id = id, Name = "Laptop", Price = 1000 });
+    }
+}
+Here:
+
+[Route("api/products")] defines the base route for the ProductController.
+The GetProductById method uses the [HttpGet("{id}")] route template to handle GET requests with a path parameter.
+[HttpGet] Attribute
+The [HttpGet] attribute is used to specify that the action method should handle GET HTTP requests.
+
+Example:
+csharp
+Copy code
+[HttpGet]
+public ActionResult<IEnumerable<Product>> GetProducts()
+{
+    return Ok(new List<Product>());
+}
+This method is triggered when an incoming GET request is made to the route api/products.
+[HttpPost] Attribute
+The [HttpPost] attribute is used to specify that the action method should handle POST HTTP requests. POST is typically used for creating resources.
+
+Example:
+csharp
+Copy code
+[HttpPost]
+public ActionResult<Product> CreateProduct([FromBody] Product product)
+{
+    // Save the product and return a response
+    return CreatedAtAction(nameof(GetProductById), new { id = product.Id }, product);
+}
+This method is triggered when a POST request is made to the route api/products.
+Other HTTP Method Attributes
+ASP.NET Core supports a variety of HTTP method attributes, including:
+
+[HttpPut]: Handles PUT requests (typically used for updating resources).
+[HttpDelete]: Handles DELETE requests (used for deleting resources).
+[HttpPatch]: Handles PATCH requests (used for partial updates).
+Real-Time Example of Routing and Parameters
+Let’s put everything together with a real-world example: a Product API.
+
+GET Request (Retrieve All Products):
+
+URL: GET api/products
+This triggers the GetProducts method.
+It returns a list of all products in JSON format.
+GET Request (Retrieve a Single Product):
+
+URL: GET api/products/{id} (e.g., GET api/products/1)
+This triggers the GetProductById method with id passed as a path parameter.
+It returns the product with the given ID.
+POST Request (Create a Product):
+
+URL: POST api/products
+Request Body (JSON):
+json
+Copy code
+{
+  "id": 3,
+  "name": "Tablet",
+  "price": 600
+}
+This triggers the CreateProduct method and creates a new product.
+GET Request (With Query Parameters):
+
+URL: GET api/products?category=electronics&maxPrice=1000
+This triggers the GetProducts method and uses query parameters to filter the products by category and price.
+Conclusion
+Routing in ASP.NET Core Web API is a fundamental aspect of building RESTful services. By understanding URL routing, query parameters, path parameters, model binding, and route attributes, you can create scalable and flexible web APIs. Use route attributes to specify routes at both the controller and action levels, and leverage model binding to handle incoming request data efficiently.
