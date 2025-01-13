@@ -1,0 +1,171 @@
+Rate Limiting & Throttling in C# Web API
+Rate limiting and throttling are techniques used to prevent abuse, ensure fairness, and maintain the reliability of your web API by controlling the number of requests a client can make within a specific period. These techniques are crucial for protecting your API from excessive load and ensuring fair usage among clients.
+
+Let's go over the concepts of Rate Limiting and Throttling, and explore how to implement them in a C# Web API with real-time examples and explanations.
+
+1. Rate Limiting & Throttling Overview
+Rate Limiting: The process of restricting the number of requests a client can make to an API within a specified period (e.g., 100 requests per minute).
+
+Throttling: Throttling typically refers to limiting the rate of requests when the API is under load, but it can also refer to temporarily slowing down the rate of requests to prevent overwhelming the system.
+
+These techniques are often used in conjunction to ensure API resources are distributed fairly and to protect the system from being overwhelmed by too many requests from a single client or from many clients.
+
+2. Techniques for Implementing Rate Limiting
+Using Polly for Rate Limiting
+Polly is a .NET library that provides resilience and transient fault handling, including capabilities for rate limiting and retries. It can be used to limit the rate of requests and ensure that clients are not sending too many requests too quickly.
+
+Example: Using Polly to Rate Limit Requests
+You can use Polly’s Policy to define a rate-limiting policy.
+
+csharp
+Copy code
+public class RateLimitingMiddleware
+{
+    private readonly RequestDelegate _next;
+    private readonly Policy _rateLimitPolicy;
+
+    public RateLimitingMiddleware(RequestDelegate next)
+    {
+        _next = next;
+
+        // Create a rate-limiting policy that allows up to 10 requests per minute
+        _rateLimitPolicy = Policy.HandleResult<HttpResponseMessage>(r => r.StatusCode == HttpStatusCode.TooManyRequests)
+            .WaitAndRetry(1, _ => TimeSpan.FromMinutes(1));
+    }
+
+    public async Task InvokeAsync(HttpContext context)
+    {
+        // Execute the policy (apply rate limit logic)
+        await _rateLimitPolicy.ExecuteAsync(async () =>
+        {
+            // Call the next middleware in the pipeline
+            await _next(context);
+        });
+    }
+}
+Explanation:
+Polly Policy: We create a policy that allows 10 requests per minute. If the rate limit is exceeded, Polly will ensure that the client waits before making another request.
+Middleware: This middleware applies the rate limit to incoming requests. If the rate limit is exceeded, it will return an HTTP status code of 429 Too Many Requests.
+Real-Time Example:
+Imagine you have an API that provides stock market data. To avoid overloading your server, you limit clients to 10 requests per minute. If a client exceeds this limit, Polly waits for the next available time slot before allowing further requests.
+
+3. Using RateLimiter Middleware in ASP.NET Core
+ASP.NET Core provides a built-in RateLimiter middleware to help manage and limit the rate of incoming requests.
+
+Example: Configuring Rate Limiting with RateLimiter Middleware
+csharp
+Copy code
+public void ConfigureServices(IServiceCollection services)
+{
+    // Add RateLimiter middleware to services
+    services.AddRateLimiter(options =>
+    {
+        options.GlobalLimiter = RateLimiter.CreateFixedWindowLimiter(
+            "global-limiter",
+            window: TimeSpan.FromMinutes(1),
+            permitsPerWindow: 10,
+            queueProcessingOrder: QueueProcessingOrder.OldestFirst,
+            autoReplenishment: true
+        );
+    });
+
+    services.AddControllers();
+}
+
+public void Configure(IApplicationBuilder app)
+{
+    app.UseRateLimiter();  // Enable rate limiting
+
+    app.UseRouting();
+    app.UseEndpoints(endpoints =>
+    {
+        endpoints.MapControllers();
+    });
+}
+Explanation:
+AddRateLimiter: We configure a rate limiter using a fixed window policy where clients can make up to 10 requests every minute. If the limit is exceeded, further requests are queued or rejected.
+UseRateLimiter: This middleware is added to the pipeline to enforce rate limiting.
+Real-Time Example:
+In an API for a social media platform, you may implement rate limiting to ensure that users can only make up to 10 API calls per minute for actions such as posting or liking content. If a user exceeds this limit, the API will return a 429 Too Many Requests response.
+
+4. IP-based Rate Limiting
+IP-based rate limiting ensures that individual IP addresses are not able to make too many requests to your API, which helps prevent abuse or denial-of-service attacks from specific sources.
+
+Example: IP-based Rate Limiting using ASP.NET Core
+You can implement IP-based rate limiting using custom middleware or use libraries like AspNetCoreRateLimit.
+
+Install the AspNetCoreRateLimit NuGet Package:
+bash
+Copy code
+Install-Package AspNetCoreRateLimit
+Configure IP-based Rate Limiting:
+In the appsettings.json file:
+
+json
+Copy code
+{
+  "IpRateLimiting": {
+    "EnableEndpointRateLimiting": true,
+    "StackBlockedRequests": false,
+    "GeneralRules": [
+      {
+        "Endpoint": "*",
+        "Period": "1m",
+        "Limit": 10
+      }
+    ]
+  }
+}
+Configure Services and Middleware:
+csharp
+Copy code
+public void ConfigureServices(IServiceCollection services)
+{
+    services.AddMemoryCache();
+
+    // Add IP rate limiting services
+    services.AddInMemoryRateLimiting();
+
+    services.Configure<IpRateLimitOptions>(Configuration.GetSection("IpRateLimiting"));
+    services.AddSingleton<IRateLimitConfiguration, RateLimitConfiguration>();
+
+    services.AddControllers();
+}
+
+public void Configure(IApplicationBuilder app)
+{
+    // Enable IP rate limiting middleware
+    app.UseIpRateLimiting();
+
+    app.UseRouting();
+    app.UseEndpoints(endpoints =>
+    {
+        endpoints.MapControllers();
+    });
+}
+Explanation:
+Configuration: In appsettings.json, we define rate-limiting rules such as allowing only 10 requests per minute (1m) from a single IP address.
+Middleware: The UseIpRateLimiting middleware applies the rules to incoming requests.
+Real-Time Example:
+In an API for a financial services platform, you may want to protect sensitive endpoints such as account transfers or balance checks. By implementing IP-based rate limiting, you can prevent abuse from a single IP address, where a malicious actor might attempt brute-force attacks on your system.
+
+5. Response to Rate Limiting
+When the rate limit is exceeded, your API should respond with a 429 Too Many Requests status code and include helpful information in the response, such as when the user can try again.
+
+Example Response:
+json
+Copy code
+{
+  "message": "Too many requests. Please try again later.",
+  "retry_after": "60 seconds"
+}
+Explanation:
+Message: Indicates that the user has exceeded their rate limit.
+Retry-After: Informs the user when they can try again, based on the configured limit (e.g., after 60 seconds).
+6. Conclusion:
+Rate limiting and throttling are essential techniques for maintaining the integrity, fairness, and reliability of your web API. By implementing these mechanisms, you can:
+
+Protect your API from abuse or overuse by individual clients.
+Ensure a fair distribution of resources across all users.
+Prevent overloads that could lead to performance degradation or system downtime.
+With the techniques and examples above (such as using Polly, RateLimiter middleware, and IP-based rate limiting), you can implement effective rate-limiting solutions in your C# Web API to safeguard your system and ensure optimal performance.
